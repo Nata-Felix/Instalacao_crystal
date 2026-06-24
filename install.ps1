@@ -1,7 +1,5 @@
 $ErrorActionPreference = "Stop"
 
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
 $Version = "v1.0"
 $Repo = "Nata-Felix/Instalacao_crystal"
 
@@ -11,27 +9,25 @@ $RawUrl = "https://raw.githubusercontent.com/$Repo/master"
 $Destino = "C:\Windows\Temp\InstalacaoCrystal"
 
 function BaixarArquivo {
-param(
-[string]$Url,
-[string]$DestinoArquivo,
-[string]$Nome
-)
+    param(
+        [string]$Url,
+        [string]$DestinoArquivo,
+        [string]$Nome
+    )
 
-```
-Write-Host ""
-Write-Host "Baixando: $Nome"
+    Write-Host ""
+    Write-Host "Baixando: $Nome"
 
-$Request = [System.Net.HttpWebRequest]::Create($Url)
-$Response = $Request.GetResponse()
-$TotalBytes = $Response.ContentLength
+    $Request = [System.Net.HttpWebRequest]::Create($Url)
+    $Response = $Request.GetResponse()
+    $TotalBytes = $Response.ContentLength
 
-$Stream = $Response.GetResponseStream()
-$FileStream = [System.IO.File]::Create($DestinoArquivo)
+    $Stream = $Response.GetResponseStream()
+    $FileStream = [System.IO.File]::Create($DestinoArquivo)
 
-$Buffer = New-Object byte[] 1048576
-$TotalLido = 0
+    $Buffer = New-Object byte[] 1048576
+    $TotalLido = 0
 
-try {
     do {
         $Lido = $Stream.Read($Buffer, 0, $Buffer.Length)
 
@@ -44,30 +40,21 @@ try {
                 $MBLido = [math]::Round($TotalLido / 1MB, 2)
                 $MBTotal = [math]::Round($TotalBytes / 1MB, 2)
 
-                Write-Progress -Activity "Baixando dependencias" -Status "$Nome - $MBLido MB de $MBTotal MB" -PercentComplete $Percentual
+                Write-Progress `
+                    -Activity "Baixando dependencias" `
+                    -Status "$Nome - $MBLido MB de $MBTotal MB" `
+                    -PercentComplete $Percentual
             }
         }
 
     } while ($Lido -gt 0)
-}
-finally {
-    if ($FileStream) {
-        $FileStream.Close()
-    }
 
-    if ($Stream) {
-        $Stream.Close()
-    }
+    $FileStream.Close()
+    $Stream.Close()
+    $Response.Close()
 
-    if ($Response) {
-        $Response.Close()
-    }
-}
-
-Write-Progress -Activity "Baixando dependencias" -Completed
-Write-Host "Concluido: $Nome"
-```
-
+    Write-Progress -Activity "Baixando dependencias" -Completed
+    Write-Host "Concluido: $Nome"
 }
 
 Write-Host "====================================="
@@ -75,37 +62,34 @@ Write-Host "BOOTSTRAP INSTALACAO CRYSTAL"
 Write-Host "====================================="
 
 if (Test-Path $Destino) {
-Remove-Item -LiteralPath $Destino -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $Destino -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 New-Item -ItemType Directory -Path $Destino -Force | Out-Null
 
 $ArquivosRelease = @(
-"dotnet48.exe",
-"VC_redist.x86.exe",
-"VC_redist.x64.exe",
-"CRRuntime_32bit_13_0_39.msi",
-"crdb_adoplus.zip"
+    "dotnet48.exe",
+    "VC_redist.x86.exe",
+    "VC_redist.x64.exe",
+    "CRRuntime_32bit_13_0_39.msi",
+    "crdb_adoplus.zip"
 )
 
 foreach ($Arquivo in $ArquivosRelease) {
-$UrlArquivo = "$BaseUrl/$Arquivo"
-$DestinoArquivo = Join-Path $Destino $Arquivo
-
-```
-BaixarArquivo -Url $UrlArquivo -DestinoArquivo $DestinoArquivo -Nome $Arquivo
-```
-
+    BaixarArquivo `
+        -Url "$BaseUrl/$Arquivo" `
+        -DestinoArquivo "$Destino\$Arquivo" `
+        -Nome $Arquivo
 }
 
-$InstaladorLocal = Join-Path $Destino "instalar.ps1"
-$UrlInstalador = "$RawUrl/instalar.ps1"
-
-BaixarArquivo -Url $UrlInstalador -DestinoArquivo $InstaladorLocal -Nome "instalar.ps1"
+BaixarArquivo `
+    -Url "$RawUrl/instalar.ps1" `
+    -DestinoArquivo "$Destino\instalar.ps1" `
+    -Nome "instalar.ps1"
 
 Write-Host ""
 Write-Host "Iniciando instalador como Administrador..."
 
-$Argumentos = '-ExecutionPolicy Bypass -NoExit -File "' + $InstaladorLocal + '"'
-
-Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList $Argumentos
+Start-Process powershell.exe `
+    -Verb RunAs `
+    -ArgumentList "-ExecutionPolicy Bypass -NoExit -File `"$Destino\instalar.ps1`""
