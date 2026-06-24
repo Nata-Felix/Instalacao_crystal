@@ -28,34 +28,41 @@ $TotalBytes = $Response.ContentLength
 $Stream = $Response.GetResponseStream()
 $FileStream = [System.IO.File]::Create($DestinoArquivo)
 
-# Buffer maior para baixar mais rapido que 8192 bytes
 $Buffer = New-Object byte[] 1048576
 $TotalLido = 0
 
-do {
-    $Lido = $Stream.Read($Buffer, 0, $Buffer.Length)
+try {
+    do {
+        $Lido = $Stream.Read($Buffer, 0, $Buffer.Length)
 
-    if ($Lido -gt 0) {
-        $FileStream.Write($Buffer, 0, $Lido)
-        $TotalLido += $Lido
+        if ($Lido -gt 0) {
+            $FileStream.Write($Buffer, 0, $Lido)
+            $TotalLido += $Lido
 
-        if ($TotalBytes -gt 0) {
-            $Percentual = [math]::Round(($TotalLido / $TotalBytes) * 100, 2)
-            $MBLido = [math]::Round($TotalLido / 1MB, 2)
-            $MBTotal = [math]::Round($TotalBytes / 1MB, 2)
+            if ($TotalBytes -gt 0) {
+                $Percentual = [math]::Round(($TotalLido / $TotalBytes) * 100, 2)
+                $MBLido = [math]::Round($TotalLido / 1MB, 2)
+                $MBTotal = [math]::Round($TotalBytes / 1MB, 2)
 
-            Write-Progress `
-                -Activity "Baixando dependencias" `
-                -Status "$Nome - $MBLido MB de $MBTotal MB" `
-                -PercentComplete $Percentual
+                Write-Progress -Activity "Baixando dependencias" -Status "$Nome - $MBLido MB de $MBTotal MB" -PercentComplete $Percentual
+            }
         }
+
+    } while ($Lido -gt 0)
+}
+finally {
+    if ($FileStream) {
+        $FileStream.Close()
     }
 
-} while ($Lido -gt 0)
+    if ($Stream) {
+        $Stream.Close()
+    }
 
-$FileStream.Close()
-$Stream.Close()
-$Response.Close()
+    if ($Response) {
+        $Response.Close()
+    }
+}
 
 Write-Progress -Activity "Baixando dependencias" -Completed
 Write-Host "Concluido: $Nome"
@@ -82,17 +89,23 @@ $ArquivosRelease = @(
 )
 
 foreach ($Arquivo in $ArquivosRelease) {
-BaixarArquivo `        -Url "$BaseUrl/$Arquivo"`
--DestinoArquivo "$Destino$Arquivo" `
--Nome $Arquivo
+$UrlArquivo = "$BaseUrl/$Arquivo"
+$DestinoArquivo = Join-Path $Destino $Arquivo
+
+```
+BaixarArquivo -Url $UrlArquivo -DestinoArquivo $DestinoArquivo -Nome $Arquivo
+```
+
 }
 
-BaixarArquivo `    -Url "$RawUrl/instalar.ps1"`
--DestinoArquivo "$Destino\instalar.ps1" `
--Nome "instalar.ps1"
+$InstaladorLocal = Join-Path $Destino "instalar.ps1"
+$UrlInstalador = "$RawUrl/instalar.ps1"
+
+BaixarArquivo -Url $UrlInstalador -DestinoArquivo $InstaladorLocal -Nome "instalar.ps1"
 
 Write-Host ""
 Write-Host "Iniciando instalador como Administrador..."
 
-Start-Process powershell.exe `    -Verb RunAs`
--ArgumentList "-ExecutionPolicy Bypass -NoExit -File `"$Destino\instalar.ps1`""
+$Argumentos = '-ExecutionPolicy Bypass -NoExit -File "' + $InstaladorLocal + '"'
+
+Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList $Argumentos
